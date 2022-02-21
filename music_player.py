@@ -123,8 +123,10 @@ class Player(QtWidgets.QMainWindow):
         self.audio_player.metaDataChanged.connect(self.metaDataChanged)
         self.audio_player.durationChanged.connect(self.setTotalDuration)
         self.player_slider.valueChanged.connect(self.setCurrentDuration)
-        self.player_slider.valueChanged.connect(self.audio_player.setPosition)
-        self.audio_player.mediaStatusChanged.connect(self.stateChanged)
+        self.player_slider.sliderMoved.connect(self.audio_player.setPosition)
+        self.audio_player.positionChanged.connect(
+            self.player_slider.setValue)
+        self.audio_player.mediaStatusChanged.connect(self.statusChanged)
 
     def open_new_song(self):
         file_path = "/home/ariel/Work/HiringMaterials/bensound-dubstep.mp3"
@@ -133,8 +135,8 @@ class Player(QtWidgets.QMainWindow):
         self.song_file.setText(file_path)
 
     @ QtCore.Slot()
-    def stateChanged(self, state):
-        print(state)
+    def statusChanged(self, status):
+        print(status)
 
     @ QtCore.Slot()
     def play_pause(self):
