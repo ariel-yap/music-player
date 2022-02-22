@@ -16,27 +16,21 @@ class QVLine(QtWidgets.QFrame):
 class Player(QtWidgets.QMainWindow):
     """MusicPlayer Class that is a GUI that allow a user to play and listen to music.
 
-    Args:
-        QtWidgets (QMainWindow): parent QMainWindow if child component
-
     Features:
     - Opens a file
+    - Opens a folder and imports all songs
+    - Plays songs
+    - Shuffle, repeat, next, previous functionality
+    - Shows a list of the playlist
     """
 
     def __init__(self):
         super().__init__()
-        self.urls = [
-            "Bach-Orchestral-Suite-no.-3-in-D-major-BWV-1068-Download-free-sheet-music.mp3",
-            "Kevin_MacLeod_-_Canon_in_D_Major.mp3",
-            "Toccata-and-Fugue-in-D-minor-BWV-565.mp3",
-        ]
-        self.folder = "/home/ariel/work/music-player/"
-        self.opened_songs = [self.folder + song for song in self.urls]
-
-        self.current_file = self.folder + self.urls[0]
+        self.playlist_files = ["/home/eighti/ambient-piano.mp3"]
 
         self.create_layout()
         self.connect()
+        self.setup()
 
     def create_layout(self):
         """Creates all layouts and widgets"""
@@ -133,40 +127,51 @@ class Player(QtWidgets.QMainWindow):
         # create separator and playlist
         main_layout.addWidget(QVLine(), 0, 5, 6, 1)
         self.playlist = QtWidgets.QListWidget()
-        self.playlist.addItems(self.urls)
         main_layout.addWidget(self.playlist, 0, 6, 6, 1)
         # create the media player
         self.audio_player = QtMultimedia.QMediaPlayer()
         self.audio_player.setVolume(10)
-        self.open_new_song()
 
     def connect(self):
         """Connect all signal and slots"""
         self.open_file_action.triggered.connect(self.open_file)
         self.open_folder_action.triggered.connect(self.open_folder)
         self.play_button.clicked.connect(self.play_pause)
+        self.previous_button.clicked.connect(self.play_next)
+        self.next_button.clicked.connect(self.play_next)
         self.audio_player.metaDataChanged.connect(self.metaDataChanged)
         self.audio_player.durationChanged.connect(self.setTotalDuration)
         self.player_slider.valueChanged.connect(self.setCurrentDuration)
         self.player_slider.sliderMoved.connect(self.audio_player.setPosition)
         self.audio_player.positionChanged.connect(self.player_slider.setValue)
-        self.audio_player.mediaStatusChanged.connect(self.statusChanged)
         self.audio_player.stateChanged.connect(self.stateChanged)
+        self.audio_player.error.connect(self.media_error)
+        self.playlist.itemDoubleClicked.connect(self.select_song)
 
-        # self.playlist.itemDoubleClicked.connect(self.select_show)
-
-    def open_new_song(self):
-        url = QtCore.QUrl.fromLocalFile(self.current_file)
-        self.audio_player.setMedia(QtMultimedia.QMediaContent(url))
-        self.song_file.setText(self.current_file)
+    def setup(self):
+        playlist = [os.path.splitext(f)[0] for f in self.playlist_files]
+        self.playlist.addItems(playlist)
 
     def reload_song_list(self, new_list):
         self.playlist.addItems(new_list)
 
+    def play_next(self):
+        current_row = self.playlist.currentRow()
+        self.playlist.setCurrentRow(current_row + 1)
+        self.select_song()
+
     @QtCore.Slot()
-    def statusChanged(self, status):
-        # print(status)
-        pass
+    def select_song(self):
+        current_song_file = self.playlist_files[self.playlist.currentRow()]
+        print("dev debug msg: " + current_song_file)
+        url = QtCore.QUrl.fromLocalFile(current_song_file)
+        self.audio_player.setMedia(QtMultimedia.QMediaContent(url))
+        self.song_file.setText(current_song_file)
+        self.audio_player.play()
+
+    @QtCore.Slot()
+    def media_error(self):
+        QtWidgets.QMessageBox.warning(self, "Error", self.audio_player.errorString())
 
     @QtCore.Slot()
     def stateChanged(self, state):
@@ -182,8 +187,6 @@ class Player(QtWidgets.QMainWindow):
                 style.standardIcon(QtWidgets.QStyle.SP_MediaPlay),
             )
         self.play_button.setIcon(icon)
-
-        print(state)
 
     @QtCore.Slot()
     def play_pause(self):
@@ -210,8 +213,12 @@ class Player(QtWidgets.QMainWindow):
         if not selection:
             return
         filename = selection[0]
-        self.opened_songs.append(filename)
+        self.playlist_files.append(filename)
         self.reload_song_list([os.path.splitext(os.path.split(filename)[1])[0]])
+
+        QtWidgets.QMessageBox.information(
+            self, "Testing", "Dev test that this works" + filename
+        )
 
     @QtCore.Slot()
     def open_folder(self):
@@ -222,14 +229,13 @@ class Player(QtWidgets.QMainWindow):
             return
         files = os.listdir(selected_folder)
         trimmed_files = [os.path.splitext(f)[0] for f in files]
-        self.opened_songs.append(files)
+        fullname_files = [selected_folder + "/" + f for f in files]
+        self.playlist_files += fullname_files
         self.reload_song_list(trimmed_files)
 
     @QtCore.Slot()
     def metaDataChanged(self):
         available_meta_data = self.audio_player.availableMetaData()
-
-        # print(available_meta_data)
         if "AlbumArtist" in available_meta_data:
             self.song_artist.setText(self.audio_player.metaData("AlbumArtist"))
         else:
@@ -239,9 +245,6 @@ class Player(QtWidgets.QMainWindow):
             self.song_title.setText(self.audio_player.metaData("Title"))
         else:
             self.song_title.setText("N/A")
-
-        if "AudioCodec" in available_meta_data:
-            print(self.audio_player.metaData("AudioCodec"))
 
     @QtCore.Slot()
     def setTotalDuration(self):
@@ -259,7 +262,6 @@ class Player(QtWidgets.QMainWindow):
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
-    # app.setStyle(QtWidgets.QStyleFactory.create("Fusion"))
 
     app.setStyleSheet(
         """
@@ -273,7 +275,7 @@ if __name__ == "__main__":
     )
 
     widget = Player()
-    widget.resize(600, 200)
+    widget.resize(700, 200)
     widget.show()
 
     sys.exit(app.exec_())
